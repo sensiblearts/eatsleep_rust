@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use eframe::egui;
 
 #[derive(Eq, Hash, PartialEq)]
@@ -5,12 +6,6 @@ pub enum Event {
     WakeUp,
     Eat,
     FallAsleep
-}
-impl Event {
-    /// Convert enum variant to usize for table lookup, so we don't have to use a hashmap
-    fn as_index(self) -> usize {
-        self as usize
-    }
 }
 
 
@@ -32,27 +27,24 @@ impl State {
 
 
 type TransitionFn = fn(&mut Person) -> State;
+type Transitions = HashMap<Event, TransitionFn>;
 
 struct Person {
-    // state_transitions: Transitions,
+    state_transitions: Transitions,
     current_state: State,
     previous_state: State,
-    jump_table: [TransitionFn; 3]
 }
 
 impl Person {
     pub fn new() -> Self {
-  
+        let mut trans: HashMap<Event, TransitionFn> = HashMap::new();
+        trans.insert(Event::WakeUp, Self::wake);
+        trans.insert(Event::Eat, Self::eat);
+        trans.insert(Event::FallAsleep, Self::sleep);
         Person {
             current_state: State::Asleep,
             previous_state: State::AteDinner,
-            // We could have used a HashMap<Event,TransitionFn> here; but instead,
-            // since we have a fixed number of entries, just use a simple lookup table:
-            jump_table: [
-                Self::wake,
-                Self::eat,
-                Self::sleep
-            ] // Note: The order in the array must be the same as declared in the Enum.
+            state_transitions: trans
         }
     }
 
@@ -113,7 +105,7 @@ impl Person {
     }
     
     fn transition(&mut self, event: Event) {
-        let a_fn = self.jump_table[event.as_index()]; // get the function                   
+        let a_fn = self.state_transitions.get(&event).unwrap();   // get the function                        
         let new_state = a_fn(self); // call the function
         self.previous_state = self.current_state.clone();
         self.current_state = new_state;
