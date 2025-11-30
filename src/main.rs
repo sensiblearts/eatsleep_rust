@@ -26,45 +26,6 @@ impl State {
 }
 
 
-fn eat(person: &mut Person) -> State {
-    match person.current_state {
-        State::AteBreakfast => { eat_lunch(person) }
-        State::AteLunch => { eat_dinner(person) }
-        _ => { eat_breakfast(person) }
-    }
-}
-
-fn eat_breakfast(_person: &mut Person) -> State {
-    // do some stuff, then return state
-    State::AteBreakfast
-}
-fn eat_lunch(_person: &mut Person) -> State {
-    // do some stuff, then return state
-    State::AteLunch
-}
-fn eat_dinner(person: &mut Person) -> State {
-    person.previous_state = State::Awake; // because only next choice after this is to sleep
-                                         // I.e., so that we cycle to morning on awake
-    State::AteDinner
-}
-
-fn sleep(_person: &mut Person) -> State {
-    // do some stuff, then return state
-    State::Asleep
-}
-
-fn wake(person: &mut Person) -> State {
-   if person.previous_state == State::AteDinner { 
-        State::Awake // after night sleep
-    } else { 
-        if person.previous_state.is_awake_substate() {
-            person.previous_state.clone() // after nap
-        } else { // default just in case
-            State::Awake
-        }
-    }
-}
-
 type TransitionFn = fn(&mut Person) -> State;
 type Transitions = HashMap<Event, TransitionFn>;
 
@@ -77,17 +38,56 @@ struct Person {
 impl Person {
     pub fn new() -> Self {
         let mut trans: HashMap<Event, TransitionFn> = HashMap::new();
-        trans.insert(Event::WakeUp, wake);
-        trans.insert(Event::Eat, eat);
-        trans.insert(Event::FallAsleep, sleep);
+        trans.insert(Event::WakeUp, Self::wake);
+        trans.insert(Event::Eat, Self::eat);
+        trans.insert(Event::FallAsleep, Self::sleep);
         Person {
             current_state: State::Asleep,
             previous_state: State::AteDinner,
             state_transitions: trans
         }
     }
+
+    fn eat(&mut self) -> State {
+        match self.current_state {
+            State::AteBreakfast => { self.eat_lunch() }
+            State::AteLunch => { self.eat_dinner() }
+            _ => { self.eat_breakfast() }
+        }
+    }
+
+    fn eat_breakfast(&mut self) -> State {
+        // do some stuff, then return state
+        State::AteBreakfast
+    }
+    fn eat_lunch(&mut self) -> State {
+        // do some stuff, then return state
+        State::AteLunch
+    }
+    fn eat_dinner(&mut self) -> State {
+        self.previous_state = State::Awake; // because only next choice after this is to sleep
+                                            // I.e., so that we cycle to morning on awake
+        State::AteDinner
+    }
+
+    fn sleep(&mut self) -> State {
+        // do some stuff, then return state
+        State::Asleep
+    }
+
+    fn wake(&mut self) -> State {
+        if self.previous_state == State::AteDinner { 
+            State::Awake // after night sleep
+        } else { 
+            if self.previous_state.is_awake_substate() {
+                self.previous_state.clone() // after nap
+            } else { // default just in case
+                State::Awake
+            }
+        }
+    }
     
-    pub fn next_meal_str(&self) -> &str {
+    fn next_meal_str(&self) -> &str {
         match self.current_state {
             State::Awake => "Eat Breakfast",
             State::AteBreakfast => "Eat Lunch",
@@ -96,7 +96,7 @@ impl Person {
         }
     }
 
-     pub fn wakeup_str(&self) -> &str {
+     fn wakeup_str(&self) -> &str {
         if self.previous_state == State::AteDinner {
             "Wake from Night Sleep"
         } else {
@@ -104,8 +104,8 @@ impl Person {
         }
     }
     
-    pub fn transition(&mut self, event: Event) {
-        let a_fn = *self.state_transitions.get(&event).unwrap();   // get the function                        
+    fn transition(&mut self, event: Event) {
+        let a_fn = self.state_transitions.get(&event).unwrap();   // get the function                        
         let new_state = a_fn(self); // call the function
         self.previous_state = self.current_state.clone();
         self.current_state = new_state;
