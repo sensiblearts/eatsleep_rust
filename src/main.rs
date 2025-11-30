@@ -1,6 +1,5 @@
 use eframe::egui;
 
-#[derive(Eq, Hash, PartialEq)]
 pub enum Event {
     WakeUp,
     Eat,
@@ -14,7 +13,7 @@ impl Event {
 }
 
 
-#[derive(Eq, Hash, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub enum State {
     Awake,
     AteBreakfast,
