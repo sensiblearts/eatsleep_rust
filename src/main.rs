@@ -1,0 +1,208 @@
+use std::collections::HashMap;
+use eframe::egui;
+
+#[derive(Eq, Hash, PartialEq)]
+pub enum Event {
+    WakeUp,
+    Eat,
+    FallAsleep
+}
+
+
+#[derive(Eq, Hash, PartialEq, Clone, Debug)]
+pub enum State {
+    Awake,
+    AteBreakfast,
+    AteLunch,
+    AteDinner,
+    Asleep
+}
+
+impl State {
+    // Helper to determine if this is an "awake" substate
+    fn is_awake_substate(&self) -> bool {
+        matches!(self, State::Awake | State::AteBreakfast | State::AteLunch | State::AteDinner)
+    }
+}
+
+
+fn eat(person: &mut Person) -> State {
+    match person.current_state {
+        State::AteBreakfast => { eat_lunch(person) }
+        State::AteLunch => { eat_dinner(person) }
+        _ => { eat_breakfast(person) }
+    }
+}
+
+fn eat_breakfast(_person: &mut Person) -> State {
+    // do some stuff, then return state
+    State::AteBreakfast
+}
+fn eat_lunch(_person: &mut Person) -> State {
+    // do some stuff, then return state
+    State::AteLunch
+}
+fn eat_dinner(person: &mut Person) -> State {
+    person.previous_state = State::Awake; // because only next choice after this is to sleep
+                                         // I.e., so that we cycle to morning on awake
+    State::AteDinner
+}
+
+fn sleep(_person: &mut Person) -> State {
+    // do some stuff, then return state
+    State::Asleep
+}
+
+fn wake(person: &mut Person) -> State {
+   if person.previous_state == State::AteDinner { 
+        State::Awake // after night sleep
+    } else { 
+        if person.previous_state.is_awake_substate() {
+            person.previous_state.clone() // after nap
+        } else { // default just in case
+            State::Awake
+        }
+    }
+}
+
+type TransitionFn = fn(&mut Person) -> State;
+type Transitions = HashMap<Event, TransitionFn>;
+
+struct Person {
+    state_transitions: Transitions,
+    current_state: State,
+    previous_state: State,
+}
+
+impl Person {
+    pub fn new() -> Self {
+        let mut trans: HashMap<Event, TransitionFn> = HashMap::new();
+        trans.insert(Event::WakeUp, wake);
+        trans.insert(Event::Eat, eat);
+        trans.insert(Event::FallAsleep, sleep);
+        Person {
+            current_state: State::Asleep,
+            previous_state: State::AteDinner,
+            state_transitions: trans
+        }
+    }
+    
+    pub fn next_meal_str(&self) -> &str {
+        match self.current_state {
+            State::Awake => "Eat Breakfast",
+            State::AteBreakfast => "Eat Lunch",
+            State::AteLunch => "Eat Dinner",
+            _ => ""
+        }
+    }
+
+     pub fn wakeup_str(&self) -> &str {
+        if self.previous_state == State::AteDinner {
+            "Wake from Night Sleep"
+        } else {
+            "Wake from Nap"
+        }
+    }
+    
+    pub fn transition(&mut self, event: Event) {
+        let a_fn = *self.state_transitions.get(&event).unwrap();   // get the function                        
+        let new_state = a_fn(self); // call the function
+        self.previous_state = self.current_state.clone();
+        self.current_state = new_state;
+
+        println!("current state: {:?}, previous state: {:?}", self.current_state, self.previous_state);
+    }
+}
+
+struct MyApp {
+    person1: Person,
+    person2: Person
+}
+
+impl MyApp {
+    pub fn new() -> Self { 
+        MyApp {
+            person1: Person::new(),
+            person2: Person::new(),
+        }
+    }
+}
+
+impl eframe::App for MyApp {      
+
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+         use egui::Vec2;
+
+            // This approach puts all GUI render logic in the .show method:
+            // It's ok now, but could get complicated as widget number grows:
+            //
+            let person1 = &mut self.person1; 
+            egui::Window::new("Person 1")
+                .fixed_size(Vec2::new(400.0, 120.0))
+                .current_pos(egui::Pos2::new(50.0, 50.0))
+                .show(ctx, |ui| {
+                    if State::is_awake_substate(&person1.current_state) {
+                        if person1.current_state != State::AteDinner {
+                            if ui.button(person1.next_meal_str()).clicked(){
+                                    person1.transition(Event::Eat);
+                            }
+                        }
+                        if ui.button("Fall Asleep").clicked(){
+                            person1.transition(Event::FallAsleep);
+                        }
+                    } else {
+                        if ui.button(person1.wakeup_str()).clicked(){
+                            person1.transition(Event::WakeUp);
+                        } 
+                    }
+                 
+                });
+
+            // This approach pulls the render out into functions depending on the state.
+            // This is probably easier to read:
+            //
+            let person2 = &mut self.person2; 
+            egui::Window::new("Person 2")
+                .fixed_size(Vec2::new(400.0, 120.0))
+                .current_pos(egui::Pos2::new(200.0, 200.0))   
+                .show(ctx, |ui| {
+                   if State::is_awake_substate(&person2.current_state) {
+                        MyApp::render_awake(ui, person2);
+                    } else {
+                        MyApp::render_asleep(ui, person2);
+                    }
+                });           
+    }
+   
+}
+     
+impl MyApp {
+    fn render_awake(ui: &mut egui::Ui, person: &mut Person) {
+        if person.current_state != State::AteDinner {
+            if ui.button(person.next_meal_str()).clicked(){
+                person.transition(Event::Eat);
+            }
+        }
+        if ui.button("Fall Asleep").clicked(){
+            person.transition(Event::FallAsleep);
+        }
+    }
+                
+    fn render_asleep(ui: &mut egui::Ui, person: &mut Person) {
+        if ui.button(person.wakeup_str()).clicked(){
+            person.transition(Event::WakeUp);
+        }
+    }
+}
+fn main() -> eframe::Result<()> {
+     let options = eframe::NativeOptions::default();
+    eframe::run_native(
+        "Event Handling / state-as-Function-Pointer Example",
+        options,
+        Box::new(|_cc| {
+            Ok(Box::new(MyApp::new()))
+        }),
+    )?;
+
+    Ok(())
+}
