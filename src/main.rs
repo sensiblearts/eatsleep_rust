@@ -108,8 +108,10 @@ impl Person {
     }
     
     fn transition(&mut self, event: Event) {
-        let a_fn = Event::dispatch(event);  // get the function              
-        let new_state = a_fn(self); // call the function
+        // let a_fn = Event::dispatch(event);  // get the function              
+        // let new_state = a_fn(self); // call the function
+        let new_state = Event::dispatch(event)(self);  // get and call the function              
+       
         self.previous_state = self.current_state.clone();
         self.current_state = new_state;
 
